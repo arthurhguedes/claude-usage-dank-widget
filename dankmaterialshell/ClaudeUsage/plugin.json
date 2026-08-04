@@ -1,0 +1,12 @@
+{
+    "id": "claudeUsage",
+    "name": "Uso do Claude",
+    "description": "Mostra tokens gastos, limite do plano e limites de sessão do Claude Code",
+    "version": "1.0.0",
+    "author": "arthurguedes",
+    "type": "widget",
+    "capabilities": ["claudeUsage"],
+    "component": "./ClaudeUsageWidget.qml",
+    "icon": "bolt",
+    "requires_dms": ">=1.5.0"
+}

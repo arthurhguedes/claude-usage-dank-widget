@@ -1,0 +1,235 @@
+#!/usr/bin/python3
+"""Emite as estatisticas do claude-usage-monitor em JSON para consumo por outras UIs.
+
+Depende do pacote de terceiros `claude-usage-tray` (github.com/Bortlesboat/claude-usage-monitor)
+apenas como biblioteca de leitura de dados; toda a logica de custo, estimativa de ritmo
+e o formato de saida abaixo sao deste projeto.
+"""
+import json
+import time
+from pathlib import Path
+
+from claude_usage_monitor.config import get_claude_dir, load_config
+from claude_usage_monitor.stats import load_stats
+
+# Preco oficial por 1M de tokens (USD). Cache write assume TTL de 5 min (1.25x
+# o input); cache read e ~0.1x o input. Ver shared/prompt-caching.md.
+PRICING = [
+    ("opus-4-8", 5.00, 25.00),
+    ("opus-4-7", 5.00, 25.00),
+    ("opus-4-6", 5.00, 25.00),
+    ("opus-4-5", 5.00, 25.00),
+    ("opus-4-1", 5.00, 25.00),
+    ("opus-4-0", 5.00, 25.00),
+    ("opus-5", 5.00, 25.00),
+    ("sonnet-4-6", 3.00, 15.00),
+    ("sonnet-4-5", 3.00, 15.00),
+    ("sonnet-4-0", 3.00, 15.00),
+    ("sonnet-5", 3.00, 15.00),
+    ("haiku-4-5", 1.00, 5.00),
+    ("3-5-sonnet", 3.00, 15.00),
+    ("3-5-haiku", 0.80, 4.00),
+    ("3-haiku", 0.25, 1.25),
+]
+PRECO_PADRAO = (3.00, 15.00)  # fallback: preco nivel Sonnet, se o modelo nao bater com nada acima
+
+PLAN_PRECO_USD = {"free": 0, "pro": 20, "max_5x": 100, "max_20x": 200}
+
+WINDOW_DURATION_HOURS = {"five_hour": 5, "seven_day": 24 * 7}
+
+# Janela de observacao recente usada para estimar o ritmo atual de consumo,
+# por tipo de janela de limite. Uma janela de 5h fica obsoleta rapido demais
+# para usar a media desde o inicio (que pode ter horas de ociosidade
+# diluindo o calculo); a de 7 dias usa uma janela maior para nao reagir a
+# ruido de poucos minutos de uso intenso.
+RECENT_LOOKBACK_MINUTES = {"five_hour": 45, "seven_day": 24 * 60}
+RECENT_MIN_SPAN_MINUTES = {"five_hour": 8, "seven_day": 120}
+
+
+def preco_para(nome_modelo):
+    n = nome_modelo.lower()
+    for chave, entrada, saida in PRICING:
+        if chave in n:
+            return entrada, saida
+    return PRECO_PADRAO
+
+
+def _history_path():
+    return get_claude_dir() / "usage-window-history.json"
+
+
+def _load_history():
+    try:
+        path = _history_path()
+        if not path.exists():
+            return {}
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def _save_history(history):
+    try:
+        _history_path().write_text(json.dumps(history), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _atualizar_historico(history, window, now_ts):
+    """Registra a amostra atual e descarta amostras antigas ou de uma janela anterior."""
+    resets_at_str = window.resets_at.isoformat() if window.resets_at else None
+    entry = history.get(window.name)
+    if entry is None or entry.get("resets_at") != resets_at_str:
+        entry = {"resets_at": resets_at_str, "samples": []}
+
+    entry["samples"].append([now_ts, window.utilization])
+
+    lookback_s = RECENT_LOOKBACK_MINUTES.get(window.name, 60) * 60 + 90
+    entry["samples"] = [s for s in entry["samples"] if now_ts - s[0] <= lookback_s][-500:]
+
+    history[window.name] = entry
+    return entry["samples"]
+
+
+def _ritmo_recente_pct_h(window, samples, now_ts):
+    """Ritmo (%/h) com base nas amostras recentes; None se nao houver historico suficiente."""
+    lookback_min = RECENT_LOOKBACK_MINUTES.get(window.name)
+    min_span_min = RECENT_MIN_SPAN_MINUTES.get(window.name)
+    if lookback_min is None or min_span_min is None or len(samples) < 2:
+        return None
+
+    primeira_ts, primeira_util = samples[0]
+    span_min = (now_ts - primeira_ts) / 60
+    if span_min < min_span_min:
+        return None
+
+    delta_util = max(window.utilization - primeira_util, 0.0)
+    span_h = span_min / 60
+    return delta_util / span_h if span_h > 0 else 0.0
+
+
+def calcular_duracao_ritmo(window, samples, now_ts):
+    """'Quanto dura nesse ritmo': tempo ate o teto (100%) OU ate o reset, o
+    que vier primeiro. Prefere o ritmo recente (mais fiel ao uso atual); cai
+    para a media desde o inicio da janela quando ainda nao ha historico
+    suficiente (ex.: logo apos abrir o app pela primeira vez)."""
+    duracao_h = WINDOW_DURATION_HOURS.get(window.name)
+    restante_min = window.resets_in_minutes
+    if not duracao_h or restante_min is None:
+        return None, None
+
+    restante_h = restante_min / 60
+
+    ritmo_pct_h = _ritmo_recente_pct_h(window, samples, now_ts)
+    if ritmo_pct_h is None:
+        decorrido_h = max(duracao_h - restante_h, 1 / 60)
+        ritmo_pct_h = window.utilization / decorrido_h
+
+    if ritmo_pct_h > 0 and window.utilization < 100:
+        tempo_ate_teto_h = (100 - window.utilization) / ritmo_pct_h
+    else:
+        tempo_ate_teto_h = 0 if window.utilization >= 100 else None
+
+    if tempo_ate_teto_h is not None and tempo_ate_teto_h < restante_h:
+        return tempo_ate_teto_h, "cap"
+    return restante_h, "reset"
+
+
+def main():
+    config = load_config()
+    snap = load_stats()
+
+    live_windows = []
+    live_error = None
+    try:
+        from claude_usage_monitor.api_usage import fetch_live_usage
+        live = fetch_live_usage()
+        if live.error:
+            live_error = live.error
+        else:
+            now_ts = time.time()
+            history = _load_history()
+            for w in sorted(live.windows, key=lambda w: w.name):
+                samples = _atualizar_historico(history, w, now_ts)
+                duracao_ritmo_h, limitado_por = calcular_duracao_ritmo(w, samples, now_ts)
+                live_windows.append({
+                    "name": w.name,
+                    "label": w.label,
+                    "utilization": round(w.utilization, 1),
+                    "resets_in": w.resets_in_display,
+                    "duration_hours": round(duracao_ritmo_h, 1) if duracao_ritmo_h is not None else None,
+                    "limited_by": limitado_por,
+                })
+            _save_history(history)
+    except Exception as e:
+        live_error = str(e)
+
+    period_output_tokens = snap.period_output_tokens(config)
+
+    # Media por dia com uso real (nao por dia de calendario): evita que dias
+    # ociosos antes do inicio do rastreamento diluam a estimativa de ritmo.
+    period_start_str = config.current_period_start.strftime("%Y-%m-%d")
+    period_active_days = max(len([d for d in snap.daily_tokens if d.date >= period_start_str]), 1)
+    daily_burn_rate = period_output_tokens / period_active_days
+
+    # Custo equivalente se pago via API (fora do plano fixo), por modelo,
+    # com base no uso total registrado (desde que o rastreamento comecou).
+    modelos = []
+    custo_total_usd = 0.0
+    for nome, m in snap.models.items():
+        preco_in, preco_out = preco_para(nome)
+        preco_cache_write = preco_in * 1.25
+        preco_cache_read = preco_in * 0.1
+        custo = (
+            m.input_tokens * preco_in
+            + m.output_tokens * preco_out
+            + m.cache_creation * preco_cache_write
+            + m.cache_read * preco_cache_read
+        ) / 1_000_000
+        custo_total_usd += custo
+        if m.total_tokens > 0:
+            modelos.append({
+                "model": nome,
+                "display_name": m.display_name,
+                "input_tokens": m.input_tokens,
+                "output_tokens": m.output_tokens,
+                "cache_read_tokens": m.cache_read,
+                "cache_creation_tokens": m.cache_creation,
+                "cost_usd": round(custo, 4),
+            })
+    modelos.sort(key=lambda x: x["cost_usd"], reverse=True)
+
+    out = {
+        "plan": config.plan,
+        "plan_label": config.plan_label,
+        "plan_price_usd": PLAN_PRECO_USD.get(config.plan),
+        "live_windows": live_windows,
+        "live_error": live_error,
+        "snapshot_error": snap.error,
+        "today_messages": snap.today_messages,
+        "today_output_tokens": snap.today_output_tokens,
+        "today_sessions": snap.today_sessions,
+        "period_start": config.current_period_start.isoformat(),
+        "period_messages": snap.period_messages(config),
+        "period_output_tokens": period_output_tokens,
+        "period_sessions": snap.period_sessions(config),
+        "output_token_limit": config.output_token_limit,
+        "usage_pct": round(snap.usage_pct(config), 1),
+        "daily_budget": snap.daily_budget(config),
+        "days_until_reset": config.days_until_reset,
+        "daily_burn_rate": round(daily_burn_rate),
+        "total_messages": snap.total_messages,
+        "total_output_tokens": snap.total_output_tokens,
+        "total_input_tokens": sum(m.input_tokens for m in snap.models.values()),
+        "total_cache_read_tokens": sum(m.cache_read for m in snap.models.values()),
+        "total_cache_creation_tokens": sum(m.cache_creation for m in snap.models.values()),
+        "total_sessions": snap.total_sessions,
+        "days_active": snap.days_active,
+        "api_equivalent_cost_usd": round(custo_total_usd, 2),
+        "models_breakdown": modelos,
+    }
+    print(json.dumps(out, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    main()
