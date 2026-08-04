@@ -6,8 +6,9 @@ apenas como biblioteca de leitura de dados; toda a logica de custo, estimativa d
 e o formato de saida abaixo sao deste projeto.
 """
 import json
+import os
+import tempfile
 import time
-from pathlib import Path
 
 from claude_usage_monitor.config import get_claude_dir, load_config
 from claude_usage_monitor.stats import load_stats
@@ -69,8 +70,21 @@ def _load_history():
 
 
 def _save_history(history):
+    """Escrita atomica: o script roda a cada 60s e pode ser chamado por mais
+    de um consumidor ao mesmo tempo (tray app + widget), entao um
+    write_text() direto poderia deixar o arquivo truncado se dois processos
+    escreverem em paralelo. Grava num arquivo temporario e troca com
+    os.replace, que e atomico no mesmo filesystem."""
+    path = _history_path()
     try:
-        _history_path().write_text(json.dumps(history), encoding="utf-8")
+        fd, tmp_path = tempfile.mkstemp(dir=path.parent, prefix=".usage-window-history-", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(history, f)
+            os.replace(tmp_path, path)
+        except BaseException:
+            os.unlink(tmp_path)
+            raise
     except OSError:
         pass
 
@@ -202,7 +216,9 @@ def main():
     out = {
         "plan": config.plan,
         "plan_label": config.plan_label,
-        "plan_price_usd": PLAN_PRECO_USD.get(config.plan),
+        # Mesmo fallback que config.plan_info usa para plano invalido/custom,
+        # senao plan_label mostraria "Pro" e o preco mostraria nulo.
+        "plan_price_usd": PLAN_PRECO_USD.get(config.plan, PLAN_PRECO_USD["pro"]),
         "live_windows": live_windows,
         "live_error": live_error,
         "snapshot_error": snap.error,

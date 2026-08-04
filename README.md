@@ -1,53 +1,100 @@
 # claude-usage-dank-widget
 
+![tests](https://github.com/guedesarthurhenrique-cpu/claude-usage-dank-widget/actions/workflows/tests.yml/badge.svg)
+![license](https://img.shields.io/badge/license-MIT-green.svg)
+![python](https://img.shields.io/badge/python-3.10+-blue.svg)
+
 Widget para o [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) que mostra,
 direto na barra do seu desktop Linux, o uso do **Claude Code**: percentual das janelas de limite
-(5 horas e 7 dias), quando cada uma reseta, custo equivalente em USD se voce pagasse por API e uma
+(5 horas e 7 dias), quando cada uma reseta, custo equivalente em USD se você pagasse por API e uma
 estimativa de quanto tempo o ritmo atual de uso ainda aguenta antes de bater no teto.
 
-Testado em Fedora Linux com Hyprland + DankMaterialShell.
+Desenvolvido e testado em Fedora Linux com Hyprland + DankMaterialShell; o script Python roda em
+qualquer distro (veja [Instalação em outras distros](#instalação-em-outras-distros)).
+
+## Sumário
+
+- [Como funciona](#como-funciona)
+- [Requisitos](#requisitos)
+- [Instalação](#instalação)
+- [Instalação em outras distros](#instalação-em-outras-distros)
+- [Desinstalação](#desinstalação)
+- [Solução de problemas](#solução-de-problemas)
+- [Desenvolvimento e testes](#desenvolvimento-e-testes)
+- [Créditos](#créditos)
+- [Licença](#licença)
 
 ## Como funciona
 
-- `bin/claude-usage-json` le os dados locais do Claude Code e da API de uso da Anthropic (via o
-  pacote [`claude-usage-tray`](#creditos)) e imprime um JSON com estatisticas, custo por modelo e
+- `bin/claude-usage-json` lê os dados locais do Claude Code e a API de uso da Anthropic (via o
+  pacote [`claude-usage-tray`](#créditos)) e imprime um JSON com estatísticas, custo por modelo e
   a estimativa de ritmo.
-- `dankmaterialshell/ClaudeUsage/` e um plugin do DankMaterialShell (QML) que chama esse script a
+- `dankmaterialshell/ClaudeUsage/` é um plugin do DankMaterialShell (QML) que chama esse script a
   cada 60s e renderiza o resultado na barra e num popout com o detalhamento por janela.
 
 ### Estimativa de "quanto tempo dura nesse ritmo"
 
-A cada execucao o script guarda um pequeno historico local de amostras (utilizacao x tempo) em
-`~/.claude/usage-window-history.json`. A duracao estimada usa o ritmo **recente** de consumo
-(ultimos ~45min para a janela de 5h, ultimas ~24h para a de 7 dias) em vez da media desde a
-abertura da janela — o que evita que horas ociosas no inicio da janela distorçam a projecao quando
-voce começa a usar pesado agora. Enquanto nao ha historico suficiente (ex.: primeira execucao),
-cai de volta para a media desde o inicio da janela.
+A cada execução o script guarda um pequeno histórico local de amostras (utilização × tempo) em
+`~/.claude/usage-window-history.json` (escrita atômica — segura mesmo com múltiplos processos
+lendo o mesmo script ao mesmo tempo). A duração estimada usa o ritmo **recente** de consumo
+(últimos ~45 min para a janela de 5h, últimas ~24h para a de 7 dias) em vez da média desde a
+abertura da janela — isso evita que horas ociosas no início da janela distorçam a projeção quando
+você começa a usar pesado agora. Enquanto não há histórico suficiente (ex.: primeira execução, ou
+logo após um reset de janela), o script cai de volta para a média desde o início da janela.
+
+O widget mostra o resultado em minutos quando for menos de 1h (antes mostrava só "menos de 1h"
+para qualquer coisa abaixo disso, o que desperdiçava a precisão do cálculo).
 
 ## Requisitos
 
 - Linux com [DankMaterialShell](https://github.com/AvengeMedia/DankMaterialShell) instalado e
   funcionando (Quickshell).
 - Python 3.10+
-- Claude Code autenticado na maquina (`claude` no terminal ao menos uma vez).
+- Claude Code autenticado na máquina (`claude` no terminal ao menos uma vez).
 
-## Instalacao
+## Instalação
 
 ```bash
-git clone https://github.com/<seu-usuario>/claude-usage-dank-widget.git
+git clone https://github.com/guedesarthurhenrique-cpu/claude-usage-dank-widget.git
 cd claude-usage-dank-widget
 ./install.sh
 ```
 
 O script:
-1. Instala a dependencia `claude-usage-tray` via `pip install --user`.
-2. Cria um link simbolico de `bin/claude-usage-json` em `~/.local/bin`.
-3. Cria um link simbolico da pasta do plugin em `~/.config/DankMaterialShell/plugins/ClaudeUsage`.
+1. Confere se você tem Python 3.10+ e (se possível) se o DankMaterialShell está instalado.
+2. Instala a dependência `claude-usage-tray` via `pip install --user` — se a sua distro bloquear
+   pip fora de venv (PEP 668 / `externally-managed-environment`), o script detecta isso sozinho e
+   refaz a instalação com `--break-system-packages`.
+3. Cria um link simbólico de `bin/claude-usage-json` em `~/.local/bin`.
+4. Cria um link simbólico da pasta do plugin em `~/.config/DankMaterialShell/plugins/ClaudeUsage`
+   (se já existir uma pasta de verdade nesse lugar, ela é renomeada como backup em vez de
+   sobrescrita).
 
-Depois, abra as configuracoes do DankMaterialShell, habilite o plugin "Uso do Claude" em Plugins
+Depois, abra as configurações do DankMaterialShell, habilite o plugin "Uso do Claude" em Plugins
 e adicione o widget na barra.
 
-## Desinstalacao
+## Instalação em outras distros
+
+O DankMaterialShell tem instalador oficial multi-distro:
+
+```bash
+curl -fsSL https://install.danklinux.com | sh
+```
+
+Cobre Arch, Fedora, Debian, Ubuntu, openSUSE e Gentoo; NixOS tem um flake próprio (veja o
+[guia de instalação](https://danklinux.com/docs/dankmaterialshell/installation)). O DMS funciona
+melhor com niri ou Hyprland, mas também roda em Sway, MangoWC, labwc, Scroll e Miracle WM.
+
+Com o DMS instalado, o `install.sh` deste repositório funciona igual em qualquer uma dessas
+distros — a única diferença entre elas é como o `pip` se comporta:
+
+| Distro | Comportamento do `pip install --user` |
+|---|---|
+| Fedora | Funciona direto, sem flags extra. |
+| Debian / Ubuntu / Arch / openSUSE (recentes) | Bloqueado por padrão (PEP 668). O `install.sh` detecta o erro `externally-managed-environment` e tenta de novo com `--break-system-packages` automaticamente. |
+| NixOS | `pip install --user` normalmente não é o caminho idiomático em NixOS. Se preferir, crie um venv (`python3 -m venv .venv && source .venv/bin/activate`) antes de rodar `./install.sh`, ou instale `claude-usage-tray` via `nix-shell -p python3Packages.pip` seguido do mesmo `pip install`. |
+
+## Desinstalação
 
 ```bash
 rm ~/.local/bin/claude-usage-json
@@ -55,16 +102,41 @@ rm ~/.config/DankMaterialShell/plugins/ClaudeUsage
 python3 -m pip uninstall claude-usage-tray
 ```
 
-## Creditos
+## Solução de problemas
 
-A leitura dos dados brutos de uso (sessoes locais do Claude Code + API OAuth de uso da Anthropic)
+- **"Sign in to Claude Code first"** no popout do widget — rode `claude` no terminal para
+  autenticar antes de usar o widget.
+- **Widget não aparece nas configurações do DMS** — confira se o link simbólico existe
+  (`ls -la ~/.config/DankMaterialShell/plugins/ClaudeUsage`) e se a versão do DMS é `>=1.5.0`
+  (requisito declarado em `dankmaterialshell/ClaudeUsage/plugin.json`).
+- **`error: externally-managed-environment` ao rodar `install.sh` manualmente com outro comando**
+  — use `pip install --user --break-system-packages -r requirements.txt`, ou instale dentro de um
+  venv.
+- **Estimativa de tempo ainda meio imprecisa logo após instalar** — é esperado: o cálculo de ritmo
+  recente só entra em ação depois de ter uns minutos de histórico acumulado (~8min para a janela
+  de 5h). Antes disso ele usa a média desde o início da janela, que é menos precisa.
+
+## Desenvolvimento e testes
+
+```bash
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest tests/ -v
+```
+
+Os testes cobrem a lógica de estimativa de ritmo (`calcular_duracao_ritmo`), o histórico local
+(poda de amostras antigas, reset ao trocar de janela, robustez a relógio do sistema voltando no
+tempo) e a tabela de preços. Rodam em CI a cada push/PR (Python 3.10, 3.12 e 3.13).
+
+## Créditos
+
+A leitura dos dados brutos de uso (sessões locais do Claude Code + API OAuth de uso da Anthropic)
 usa como biblioteca o pacote [`claude-usage-tray`](https://github.com/Bortlesboat/claude-usage-monitor),
-de Andrew Barnes, distribuido via PyPI sob licenca MIT. Este repositorio nao redistribui o codigo
+de Andrew Barnes, distribuído via PyPI sob licença MIT. Este repositório não redistribui o código
 dele — apenas depende dele (`requirements.txt`) e adiciona por cima o exportador JSON com custo em
-USD, breakdown por modelo e a estimativa de ritmo, alem do widget de integracao com o
+USD, breakdown por modelo e a estimativa de ritmo, além do widget de integração com o
 DankMaterialShell.
 
-## Licenca
+## Licença
 
-MIT — veja [LICENSE](LICENSE). Cobre apenas o codigo deste repositorio (`bin/` e
-`dankmaterialshell/`); o `claude-usage-tray` tem sua propria licenca MIT, do autor original.
+MIT — veja [LICENSE](LICENSE). Cobre apenas o código deste repositório (`bin/`, `tests/` e
+`dankmaterialshell/`); o `claude-usage-tray` tem sua própria licença MIT, do autor original.

@@ -37,8 +37,10 @@ PluginComponent {
     function formatarDuracao(horas) {
         if (horas === undefined || horas === null)
             return "";
-        if (horas < 1)
-            return "menos de 1h";
+        if (horas < 1) {
+            const minutos = Math.round(horas * 60);
+            return minutos <= 0 ? "menos de 1min" : "~" + minutos + "min";
+        }
         if (horas < 48)
             return "~" + Math.round(horas) + "h";
         return "~" + Math.round(horas / 24) + " dias";
