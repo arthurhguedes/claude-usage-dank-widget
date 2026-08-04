@@ -90,8 +90,16 @@ def _save_history(history):
 
 
 def _atualizar_historico(history, window, now_ts):
-    """Registra a amostra atual e descarta amostras antigas ou de uma janela anterior."""
-    resets_at_str = window.resets_at.isoformat() if window.resets_at else None
+    """Registra a amostra atual e descarta amostras antigas ou de uma janela anterior.
+
+    A API da Anthropic devolve resets_at com jitter de sub-segundo entre
+    chamadas (observado: ~800ms de diferenca em requisicoes 1min separadas,
+    mesmo dentro da mesma janela). Comparar a string ISO exata faz o
+    historico ser descartado a cada execucao, entao truncamos para o
+    minuto -- uma janela de verdade rolando muda resets_at em horas/dias,
+    bem acima dessa tolerancia.
+    """
+    resets_at_str = window.resets_at.replace(second=0, microsecond=0).isoformat() if window.resets_at else None
     entry = history.get(window.name)
     if entry is None or entry.get("resets_at") != resets_at_str:
         entry = {"resets_at": resets_at_str, "samples": []}

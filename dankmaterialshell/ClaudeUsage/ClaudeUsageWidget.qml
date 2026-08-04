@@ -149,7 +149,11 @@ PluginComponent {
             StyledText {
                 width: parent.width
                 visible: !root.failed && root.janelas.length === 0
-                text: "Faça login no Claude Code para ver os limites."
+                // stats.live_error ja traz a mensagem certa por caso (nao
+                // logado, rate limited, sem rede, sessao expirada, etc.) --
+                // mostrar um "faca login" fixo aqui confundia num rate
+                // limit transitorio, que nao tem nada a ver com login.
+                text: root.stats.live_error || "Sem dados de uso no momento."
                 color: Theme.surfaceVariantText
                 font.pixelSize: Theme.fontSizeSmall
                 wrapMode: Text.WordWrap

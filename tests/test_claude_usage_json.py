@@ -118,6 +118,25 @@ def test_atualizar_historico_reseta_ao_trocar_de_janela(mod):
     assert samples == [[now, 5.0]]
 
 
+def test_atualizar_historico_ignora_jitter_de_subsegundo_no_resets_at(mod):
+    # Bug real observado contra a API: resets_at muda por ~800ms entre
+    # chamadas dentro da mesma janela (jitter do servidor). Isso nao pode
+    # ser tratado como rollover de janela, senao o historico nunca
+    # acumula amostras.
+    now = time.time()
+    reset_a = datetime(2026, 8, 4, 5, 40, 0, 69318, tzinfo=timezone.utc)
+    reset_b = datetime(2026, 8, 4, 5, 40, 0, 869335, tzinfo=timezone.utc)
+
+    history = {}
+    w1 = FakeWindow("five_hour", 40.0, 240, resets_at=reset_a)
+    mod._atualizar_historico(history, w1, now)
+
+    w2 = FakeWindow("five_hour", 42.0, 239, resets_at=reset_b)
+    samples = mod._atualizar_historico(history, w2, now + 60)
+
+    assert samples == [[now, 40.0], [now + 60, 42.0]]
+
+
 def test_atualizar_historico_limita_tamanho(mod):
     now = time.time()
     many = [[now - i, 1.0] for i in range(600)]
