@@ -35,15 +35,25 @@ PluginComponent {
     }
 
     function formatarDuracao(horas) {
+        // O backend ja calcula com precisao de 0.1h (~6min); antes essa
+        // funcao jogava tudo fora arredondando pra hora cheia (ex.: 4.6h
+        // virava "~5h"). Mesmo formato Xh Ym / Xd Yh que resets_in ja usa.
         if (horas === undefined || horas === null)
             return "";
-        if (horas < 1) {
-            const minutos = Math.round(horas * 60);
-            return minutos <= 0 ? "menos de 1min" : "~" + minutos + "min";
+        const totalMin = Math.round(horas * 60);
+        if (totalMin <= 0)
+            return "menos de 1m";
+        if (totalMin < 60)
+            return totalMin + "m";
+        if (horas < 48) {
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            return m === 0 ? h + "h" : h + "h " + m + "m";
         }
-        if (horas < 48)
-            return "~" + Math.round(horas) + "h";
-        return "~" + Math.round(horas / 24) + " dias";
+        const totalHoras = Math.round(horas);
+        const dias = Math.floor(totalHoras / 24);
+        const horasResto = totalHoras % 24;
+        return horasResto === 0 ? dias + "d" : dias + "d " + horasResto + "h";
     }
 
     function atualizar() {

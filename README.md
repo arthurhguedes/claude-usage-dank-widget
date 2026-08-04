@@ -115,6 +115,10 @@ python3 -m pip uninstall claude-usage-tray
 - **Estimativa de tempo ainda meio imprecisa logo após instalar** — é esperado: o cálculo de ritmo
   recente só entra em ação depois de ter uns minutos de histórico acumulado (~8min para a janela
   de 5h). Antes disso ele usa a média desde o início da janela, que é menos precisa.
+- **Editei o `.qml` e a mudança não aparece no widget** — `dms ipc call plugins reload <id>` **não**
+  recompila o QML, só reprocessa metadata do plugin; edições no arquivo `.qml` em si só pegam com
+  um restart completo do Quickshell: `dms restart`. Isso vale pra qualquer alteração de código do
+  widget, não só as deste repo.
 
 ## Desenvolvimento e testes
 
