@@ -179,7 +179,7 @@ def main():
                     "label": w.label,
                     "utilization": round(w.utilization, 1),
                     "resets_in": w.resets_in_display,
-                    "duration_hours": round(duracao_ritmo_h, 1) if duracao_ritmo_h is not None else None,
+                    "duration_minutes": round(duracao_ritmo_h * 60) if duracao_ritmo_h is not None else None,
                     "limited_by": limitado_por,
                 })
             _save_history(history)

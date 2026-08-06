@@ -43,7 +43,10 @@ você começa a usar pesado agora. Enquanto não há histórico suficiente (ex.:
 logo após um reset de janela), o script cai de volta para a média desde o início da janela.
 
 O widget mostra o resultado em minutos quando for menos de 1h (antes mostrava só "menos de 1h"
-para qualquer coisa abaixo disso, o que desperdiçava a precisão do cálculo).
+para qualquer coisa abaixo disso, o que desperdiçava a precisão do cálculo). O backend manda a
+duração já em minutos inteiros (não mais arredondada pra 0.1h): antes disso, "dura Xh Ym nesse
+ritmo" podia discordar em 1min de "reinicia em" pro mesmo reset, por causa de dois arredondamentos
+em cascata (0.1h no backend, depois minutos de novo no QML).
 
 ## Requisitos
 

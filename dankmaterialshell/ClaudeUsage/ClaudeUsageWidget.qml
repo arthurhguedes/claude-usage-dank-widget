@@ -34,23 +34,25 @@ PluginComponent {
         return "$" + v.toFixed(v >= 10 ? 0 : 2);
     }
 
-    function formatarDuracao(horas) {
-        // O backend ja calcula com precisao de 0.1h (~6min); antes essa
-        // funcao jogava tudo fora arredondando pra hora cheia (ex.: 4.6h
-        // virava "~5h"). Mesmo formato Xh Ym / Xd Yh que resets_in ja usa.
-        if (horas === undefined || horas === null)
+    function formatarDuracao(minutos) {
+        // O backend ja manda o total em minutos inteiros (mesma precisao
+        // que resets_in usa) -- arredondar de novo aqui a partir de horas
+        // fazia "dura Xh Ym" discordar de "reinicia em" por causa de
+        // arredondamentos em cascata (ex.: 1h 42m vs 1h 43m pro mesmo
+        // reset). Mesmo formato Xh Ym / Xd Yh que resets_in ja usa.
+        if (minutos === undefined || minutos === null)
             return "";
-        const totalMin = Math.round(horas * 60);
+        const totalMin = Math.round(minutos);
         if (totalMin <= 0)
             return "menos de 1m";
         if (totalMin < 60)
             return totalMin + "m";
-        if (horas < 48) {
+        if (totalMin < 48 * 60) {
             const h = Math.floor(totalMin / 60);
             const m = totalMin % 60;
             return m === 0 ? h + "h" : h + "h " + m + "m";
         }
-        const totalHoras = Math.round(horas);
+        const totalHoras = Math.round(totalMin / 60);
         const dias = Math.floor(totalHoras / 24);
         const horasResto = totalHoras % 24;
         return horasResto === 0 ? dias + "d" : dias + "d " + horasResto + "h";
@@ -233,8 +235,8 @@ PluginComponent {
 
                         StyledText {
                             width: parent.width
-                            visible: modelData.duration_hours !== undefined && modelData.duration_hours !== null
-                            text: modelData.limited_by === "cap" ? "acaba em " + root.formatarDuracao(modelData.duration_hours) + " — não chega no reset" : "dura " + root.formatarDuracao(modelData.duration_hours) + " nesse ritmo — chega no reset"
+                            visible: modelData.duration_minutes !== undefined && modelData.duration_minutes !== null
+                            text: modelData.limited_by === "cap" ? "acaba em " + root.formatarDuracao(modelData.duration_minutes) + " — não chega no reset" : "dura " + root.formatarDuracao(modelData.duration_minutes) + " nesse ritmo — chega no reset"
                             color: modelData.limited_by === "cap" ? Theme.error : "#7fb069"
                             font.pixelSize: Theme.fontSizeSmall
                         }
