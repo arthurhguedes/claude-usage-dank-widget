@@ -32,6 +32,21 @@ qualquer distro (veja [Instalação em outras distros](#instalação-em-outras-d
 - `dankmaterialshell/ClaudeUsage/` é um plugin do DankMaterialShell (QML) que chama esse script a
   cada 60s e renderiza o resultado na barra e num popout com o detalhamento por janela.
 
+### Configurações (engrenagem no popout)
+
+O ícone de engrenagem no cabeçalho do popout abre um painel com três opções, salvas nas
+configurações do plugin (persistem entre reloads do DankMaterialShell):
+
+- **Fazer login no Claude** — abre um terminal (detecta ghostty/alacritty/xterm/kitty/foot/wezterm,
+  o que estiver instalado) rodando `claude auth login`, pra autenticar sem precisar sair do desktop
+  pra abrir um terminal manualmente.
+- **Tema** — alterna entre o tema padrão e o tema "Konoha": o ícone de raio na barra vira o selo da
+  Vila da Folha (desenhado em QML puro com `Canvas`, sem imagem externa, respeitando as mesmas
+  cores de status verde/amarelo/vermelho) e os textos do popout passam a falar de "chakra" em vez
+  de "uso".
+- **Idioma** — português ou inglês; troca todos os textos do popout (títulos, mensagens de erro,
+  duração, custo), incluindo as variantes do tema Konoha em cada idioma.
+
 ### Estimativa de "quanto tempo dura nesse ritmo"
 
 A cada execução o script guarda um pequeno histórico local de amostras (utilização × tempo) em
