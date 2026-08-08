@@ -46,7 +46,10 @@ O widget mostra o resultado em minutos quando for menos de 1h (antes mostrava s�
 para qualquer coisa abaixo disso, o que desperdiçava a precisão do cálculo). O backend manda a
 duração já em minutos inteiros (não mais arredondada pra 0.1h): antes disso, "dura Xh Ym nesse
 ritmo" podia discordar em 1min de "reinicia em" pro mesmo reset, por causa de dois arredondamentos
-em cascata (0.1h no backend, depois minutos de novo no QML).
+em cascata (0.1h no backend, depois minutos de novo no QML). A formatação de "dura Xh Ym nesse
+ritmo" também usa o mesmo corte para dias (24h) e o mesmo truncamento de horas que "reinicia em"
+usa — antes o corte era 48h, então durações entre 24h e 48h apareciam como "30h" num texto e
+"1d 6h" no outro para o mesmo evento de reset.
 
 ## Requisitos
 
@@ -119,9 +122,11 @@ python3 -m pip uninstall claude-usage-tray
   recente só entra em ação depois de ter uns minutos de histórico acumulado (~8min para a janela
   de 5h). Antes disso ele usa a média desde o início da janela, que é menos precisa.
 - **Editei o `.qml` e a mudança não aparece no widget** — `dms ipc call plugins reload <id>` **não**
-  recompila o QML, só reprocessa metadata do plugin; edições no arquivo `.qml` em si só pegam com
-  um restart completo do Quickshell: `dms restart`. Isso vale pra qualquer alteração de código do
-  widget, não só as deste repo.
+  recompila o QML, só reprocessa metadata do plugin. Quem recompila de verdade é
+  `dms ipc call plugin-scan reload <id>` (nota: alvo `plugin-scan`, não `plugins`) — internamente
+  ele força um `Qt.createComponent` com cache-busting. Um `dms restart` completo também funciona,
+  mas é bem mais lento e derruba a barra inteira por um instante; prefira o `plugin-scan reload`
+  pra iterar. Isso vale pra qualquer alteração de código do widget, não só as deste repo.
 
 ## Desenvolvimento e testes
 

@@ -39,7 +39,10 @@ PluginComponent {
         // que resets_in usa) -- arredondar de novo aqui a partir de horas
         // fazia "dura Xh Ym" discordar de "reinicia em" por causa de
         // arredondamentos em cascata (ex.: 1h 42m vs 1h 43m pro mesmo
-        // reset). Mesmo formato Xh Ym / Xd Yh que resets_in ja usa.
+        // reset). Mesmo corte (24h) e mesmo truncamento (nao arredondamento)
+        // de horas que resets_in_display usa na claude-usage-tray -- um
+        // corte de 48h aqui fazia durações entre 24h-48h aparecerem como
+        // "30h" enquanto "reinicia em" mostrava "1d 6h" pro mesmo evento.
         if (minutos === undefined || minutos === null)
             return "";
         const totalMin = Math.round(minutos);
@@ -47,14 +50,12 @@ PluginComponent {
             return "menos de 1m";
         if (totalMin < 60)
             return totalMin + "m";
-        if (totalMin < 48 * 60) {
-            const h = Math.floor(totalMin / 60);
-            const m = totalMin % 60;
-            return m === 0 ? h + "h" : h + "h " + m + "m";
-        }
-        const totalHoras = Math.round(totalMin / 60);
-        const dias = Math.floor(totalHoras / 24);
-        const horasResto = totalHoras % 24;
+        const horas = Math.floor(totalMin / 60);
+        const m = totalMin % 60;
+        if (horas < 24)
+            return m === 0 ? horas + "h" : horas + "h " + m + "m";
+        const dias = Math.floor(horas / 24);
+        const horasResto = horas % 24;
         return horasResto === 0 ? dias + "d" : dias + "d " + horasResto + "h";
     }
 
