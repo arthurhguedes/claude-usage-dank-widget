@@ -126,26 +126,32 @@ PluginComponent {
             ctx.reset();
             const w = width, h = height;
             const cx = w / 2, cy = h / 2;
-            const raio = Math.min(w, h) / 2 - Math.max(1, w * 0.08);
+            const raio = Math.min(w, h) / 2 - Math.max(1, w * 0.1);
 
+            // anel metalico da placa da bandana
             ctx.strokeStyle = konohaRoot.corIcone;
-            ctx.lineWidth = Math.max(1, w * 0.12);
+            ctx.lineWidth = Math.max(1, w * 0.1);
             ctx.beginPath();
             ctx.arc(cx, cy, raio, 0, Math.PI * 2);
             ctx.stroke();
 
-            ctx.fillStyle = konohaRoot.corIcone;
             ctx.save();
             ctx.translate(cx, cy);
+            ctx.rotate(-Math.PI / 6);
             const s = raio * 0.8;
+
+            // folha unica, inclinada, ponta fina nas duas extremidades --
+            // silhueta simples e solida pra continuar legivel no tamanho
+            // minusculo do icone da barra (detalhe interno vira ruido nessa
+            // escala, entao a nervura fica de fora)
+            ctx.fillStyle = konohaRoot.corIcone;
             ctx.beginPath();
             ctx.moveTo(0, -s);
-            ctx.bezierCurveTo(s * 0.78, -s * 0.78, s * 0.62, -s * 0.05, 0, 0);
-            ctx.bezierCurveTo(-s * 0.62, s * 0.05, -s * 0.78, s * 0.78, 0, s);
-            ctx.bezierCurveTo(s * 0.32, s * 0.5, s * 0.3, s * 0.12, 0, 0);
-            ctx.bezierCurveTo(-s * 0.3, -s * 0.12, -s * 0.32, -s * 0.5, 0, -s);
+            ctx.quadraticCurveTo(s * 0.95, -s * 0.05, 0, s * 0.95);
+            ctx.quadraticCurveTo(-s * 0.95, -s * 0.05, 0, -s);
             ctx.closePath();
             ctx.fill();
+
             ctx.restore();
         }
     }
